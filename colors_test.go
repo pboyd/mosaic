@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"image/color"
 	_ "image/png"
 
 	"github.com/stretchr/testify/assert"
@@ -14,11 +13,8 @@ import (
 func TestAverageColor(t *testing.T) {
 	assert := assert.New(t)
 	img := loadImage(t, "testfiles/two-tone.png")
-	c := averageColor(img).(color.RGBA)
-	assert.Equal(uint8(0x7f), c.R)
-	assert.Equal(uint8(0x7f), c.G)
-	assert.Equal(uint8(0x7f), c.B)
-	assert.Equal(uint8(0xff), c.A)
+	c := averageColor(img)
+	assert.Equal(uint32(0x7f7f7f), c)
 }
 
 func loadImage(t *testing.T, path string) image.Image {
