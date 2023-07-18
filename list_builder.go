@@ -3,12 +3,9 @@ package mosaic
 import (
 	"image"
 	"log"
-	"os"
 
 	"io/fs"
 	"path/filepath"
-
-	color_extractor "github.com/marekm4/color-extractor"
 
 	_ "image/gif"
 	_ "image/jpeg"
@@ -18,18 +15,10 @@ import (
 // BuildImageList finds and indexes all images in the given path.
 func BuildImageList(path string) *ImageList {
 	imageCh := findImages(path)
-	imageList := &ImageList{}
+	imageList := newImageList()
 	for img := range imageCh {
-		colors := color_extractor.ExtractColors(img.Image)
-
-		/*
-			fmt.Printf("found image: %s\n", img.Path)
-			for _, color := range colors {
-				fmt.Printf("  #%.6x\n", colorRGB(color))
-			}
-		*/
-
-		imageList.insert(colorRGB(colors[0]), img.Path)
+		log.Printf("found image %s", img.Path)
+		imageList.insert(primaryColor(img.Image), img.Path)
 	}
 	return imageList
 }
@@ -57,14 +46,7 @@ func findImages(path string) <-chan foundImage {
 				return nil
 			}
 
-			fh, err := os.Open(path)
-			if err != nil {
-				log.Printf("%s: %s", path, err)
-				return nil
-			}
-			defer fh.Close()
-
-			img, _, err := image.Decode(fh)
+			img, err := loadImage(path)
 			if err != nil {
 				log.Printf("%s: %s", path, err)
 				return nil

@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"math"
+
+	color_extractor "github.com/marekm4/color-extractor"
 )
 
 func colorRGB(c color.Color) uint32 {
@@ -12,6 +14,11 @@ func colorRGB(c color.Color) uint32 {
 	g >>= 8
 	b >>= 8
 	return (r << 16) | (g << 8) | b
+}
+
+func primaryColor(img image.Image) uint32 {
+	colors := color_extractor.ExtractColors(img)
+	return colorRGB(colors[0])
 }
 
 func averageColor(img image.Image) uint32 {

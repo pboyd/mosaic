@@ -12,12 +12,12 @@ import (
 
 func TestAverageColor(t *testing.T) {
 	assert := assert.New(t)
-	img := loadImage(t, "testfiles/two-tone.png")
+	img := loadTestImage(t, "testfiles/two-tone.png")
 	c := averageColor(img)
 	assert.Equal(uint32(0x7f7f7f), c)
 }
 
-func loadImage(t *testing.T, path string) image.Image {
+func loadTestImage(t *testing.T, path string) image.Image {
 	fh, err := os.Open("testfiles/two-tone.png")
 	if err != nil {
 		t.Fatal(err)
