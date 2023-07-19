@@ -2,11 +2,11 @@ package mosaic
 
 import (
 	"image"
-	"os"
 	"testing"
 
 	_ "image/png"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,17 +17,13 @@ func TestAverageColor(t *testing.T) {
 	assert.Equal(uint32(0x7f7f7f), c)
 }
 
-func loadTestImage(t *testing.T, path string) image.Image {
-	fh, err := os.Open("testfiles/two-tone.png")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer fh.Close()
-	img, _, err := image.Decode(fh)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return img
+func TestPrimaryColor(t *testing.T) {
+	assert := assert.New(t)
+	img := loadTestImage(t, "testfiles/cat.jpg")
+	crop := img.(interface {
+		SubImage(r image.Rectangle) image.Image
+	}).SubImage(image.Rect(10, 10, 20, 20))
+	spew.Dump(crop.Bounds())
+	c := primaryColor(crop)
+	assert.Equal(uint32(0x000000), c)
 }
