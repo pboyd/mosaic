@@ -17,8 +17,10 @@ func TestImageList(t *testing.T) {
 		{0xFF0000, true, []string{"testfiles/red.png"}},
 		{0xFFFFFF, true, []string{"testfiles/white.png"}},
 		{0x0011DD, false, []string{"testfiles/blue.png"}},
-		{0xFFAAFF, false, []string{"testfiles/pink.png"}},
-		{0xC19D25, false, []string{"testfiles/yellow.png"}},
+		{0xFF33FF, false, []string{"testfiles/pink.png"}},
+		{0xAAAA12, false, []string{"testfiles/yellow.png"}},
+		{0x010101, false, []string{"testfiles/black.png", "testfiles/two-tone.png"}},
+		{0x777777, false, []string{"testfiles/gray.png"}},
 	}
 
 	assert := assert.New(t)
