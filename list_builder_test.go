@@ -1,6 +1,7 @@
 package mosaic
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestImageList(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	list := BuildImageList("testfiles")
+	list := BuildImageList(context.Background(), 4, "testfiles")
 	if !assert.Greater(list.Len(), 0) {
 		return
 	}

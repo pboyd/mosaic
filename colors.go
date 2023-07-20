@@ -3,6 +3,7 @@ package mosaic
 import (
 	"image"
 	"image/color"
+	"math"
 
 	color_extractor "github.com/marekm4/color-extractor"
 )
@@ -28,6 +29,12 @@ func vectorColor(v []float64) uint32 {
 }
 
 func primaryColor(img image.Image) uint32 {
-	colors := color_extractor.ExtractColors(img)
+	colors := color_extractor.ExtractColorsWithConfig(img, color_extractor.Config{
+		SmallBucket: 0.01,
+		DownSizeTo:  224,
+	})
+	if len(colors) == 0 {
+		return math.MaxUint32
+	}
 	return colorRGB(colors[0])
 }

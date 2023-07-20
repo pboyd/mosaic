@@ -1,8 +1,10 @@
 package mosaic
 
 import (
-	"image"
+	"context"
 	"log"
+	"strings"
+	"sync"
 
 	"io/fs"
 	"path/filepath"
@@ -13,23 +15,30 @@ import (
 )
 
 // BuildImageList finds and indexes all images in the given path.
-func BuildImageList(path string) *ImageList {
-	imageCh := findImages(path)
-	imageList := newImageList()
-	for img := range imageCh {
-		log.Printf("found image %s", img.Path)
-		imageList.insert(primaryColor(img.Image), img.Path)
+func BuildImageList(ctx context.Context, workers int, path string) *ImageList {
+	pathCh := findImages(ctx, path)
+
+	colorChs := make([]<-chan imageColor, workers)
+	for i := range colorChs {
+		colorChs[i] = findImageColor(pathCh)
 	}
+
+	imageList := newImageList()
+	for found := range mergeColorChannels(colorChs...) {
+		log.Printf("found image %s", found.Path)
+		imageList.insert(found.Color, found.Path)
+	}
+
 	return imageList
 }
 
-type foundImage struct {
+type imageColor struct {
 	Path  string
-	Image image.Image
+	Color uint32
 }
 
-func findImages(path string) <-chan foundImage {
-	ch := make(chan foundImage)
+func findImages(ctx context.Context, path string) <-chan string {
+	ch := make(chan string)
 	go func() {
 		defer close(ch)
 
@@ -39,23 +48,19 @@ func findImages(path string) <-chan foundImage {
 				return nil
 			}
 
-			ext := filepath.Ext(path)
+			ext := strings.ToLower(filepath.Ext(path))
 			switch ext {
 			case ".jpg", ".jpeg", ".png", ".gif":
 			default:
 				return nil
 			}
 
-			img, err := loadImage(path)
-			if err != nil {
-				log.Printf("%s: %s", path, err)
-				return nil
+			select {
+			case ch <- path:
+			case <-ctx.Done():
+				return fs.SkipAll
 			}
 
-			ch <- foundImage{
-				Path:  path,
-				Image: img,
-			}
 			return nil
 		})
 		if err != nil {
@@ -63,4 +68,47 @@ func findImages(path string) <-chan foundImage {
 		}
 	}()
 	return ch
+}
+
+func findImageColor(ch <-chan string) <-chan imageColor {
+	out := make(chan imageColor)
+	go func() {
+		defer close(out)
+		for path := range ch {
+			img, err := loadImage(path)
+			if err != nil {
+				log.Printf("%s: %s", path, err)
+				continue
+			}
+
+			out <- imageColor{
+				Path:  path,
+				Color: primaryColor(img),
+			}
+		}
+	}()
+
+	return out
+}
+
+func mergeColorChannels(chs ...<-chan imageColor) <-chan imageColor {
+	out := make(chan imageColor)
+
+	var wg sync.WaitGroup
+	wg.Add(len(chs))
+	for _, ch := range chs {
+		go func(ch <-chan imageColor) {
+			defer wg.Done()
+			for img := range ch {
+				out <- img
+			}
+		}(ch)
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	return out
 }

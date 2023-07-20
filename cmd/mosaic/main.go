@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"image"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/pboyd/mosaic"
 
@@ -19,12 +23,16 @@ var tileImagesPath string
 var sourceImagePath string
 var outputImagePath string
 var tileSize int
+var workers int
+var blend bool
 
 func init() {
 	flag.StringVar(&sourceImagePath, "image", "", "Path to source image")
 	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
 	flag.IntVar(&tileSize, "size", 10, "Tile size")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
+	flag.IntVar(&workers, "workers", runtime.NumCPU(), "Number of workers")
+	flag.BoolVar(&blend, "blend", false, "For transparent images, blend the tile images onto the source image")
 	flag.Parse()
 
 	if sourceImagePath == "" {
@@ -69,10 +77,17 @@ func main() {
 	}
 	defer outFile.Close()
 
-	tileImages := mosaic.BuildImageList(tileImagesPath)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
-	outputImage := mosaic.Generate(sourceImage, tileImages, mosaic.Config{
+	start := time.Now()
+	tileImages := mosaic.BuildImageList(ctx, workers, tileImagesPath)
+	fmt.Printf("Loaded %d tile images in %s\n", tileImages.Len(), time.Since(start))
+
+	outputImage := mosaic.Generate(ctx, sourceImage, tileImages, mosaic.Config{
 		TileSize: tileSize,
+		Workers:  workers,
+		Blend:    blend,
 	})
 
 	err = writeImage(outputImage, outFile)
@@ -88,7 +103,7 @@ func deriveOutputImagePath(sourceImagePath string) string {
 	base = strings.TrimSuffix(base, ext)
 
 	outPath := filepath.Join(dir, base+".mosaic"+ext)
-	if _, err := os.Stat(outPath); err == nil {
+	if _, err := os.Stat(outPath); err != nil {
 		return outPath
 	}
 
