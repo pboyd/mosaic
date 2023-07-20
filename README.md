@@ -2,9 +2,15 @@
 
 Generates images from many small tiles.
 
-This is still in an early stage of development, but it is currently functional. Here's an example:
+This is still in an early stage of development, but it is currently functional. Here's an example, click to enlarge:
 
 [![Go Gopher](https://raw.githubusercontent.com/pboyd/mosaic/master/examples/gopher.small.png)](https://raw.githubusercontent.com/pboyd/mosaic/master/examples/gopher.png)
+
+This was generated with:
+
+```
+./mosaic -image gopher.png -tiles gophers/ -scale 3.0 -size 50 -blend
+```
 
 
 ## Usage
