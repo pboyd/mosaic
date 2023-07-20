@@ -25,7 +25,7 @@ func TestImageList(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	list := BuildImageList(context.Background(), 4, "testfiles")
+	list := BuildImageList(context.Background(), "testfiles", Config{Workers: 2})
 	if !assert.Greater(list.Len(), 0) {
 		return
 	}

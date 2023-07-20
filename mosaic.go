@@ -18,6 +18,10 @@ type Config struct {
 	TileSize int
 	Workers  int
 	Blend    bool
+
+	// ResizeTiles indicates whether the tile images should be resized before
+	// determining their primary color.
+	ResizeTiles bool
 }
 
 // Generate generates a mosaic image from the source image and the tile images.

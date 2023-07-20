@@ -12,15 +12,17 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+
+	"github.com/disintegration/imaging"
 )
 
 // BuildImageList finds and indexes all images in the given path.
-func BuildImageList(ctx context.Context, workers int, path string) *ImageList {
-	pathCh := findImages(ctx, path)
+func BuildImageList(ctx context.Context, path string, config Config) *ImageList {
+	pathCh := findImages(ctx, path, config)
 
-	colorChs := make([]<-chan imageColor, workers)
+	colorChs := make([]<-chan imageColor, config.Workers)
 	for i := range colorChs {
-		colorChs[i] = findImageColor(pathCh)
+		colorChs[i] = findImageColor(pathCh, config)
 	}
 
 	imageList := newImageList()
@@ -37,7 +39,7 @@ type imageColor struct {
 	Color uint32
 }
 
-func findImages(ctx context.Context, path string) <-chan string {
+func findImages(ctx context.Context, path string, config Config) <-chan string {
 	ch := make(chan string)
 	go func() {
 		defer close(ch)
@@ -70,7 +72,7 @@ func findImages(ctx context.Context, path string) <-chan string {
 	return ch
 }
 
-func findImageColor(ch <-chan string) <-chan imageColor {
+func findImageColor(ch <-chan string, config Config) <-chan imageColor {
 	out := make(chan imageColor)
 	go func() {
 		defer close(out)
@@ -79,6 +81,10 @@ func findImageColor(ch <-chan string) <-chan imageColor {
 			if err != nil {
 				log.Printf("%s: %s", path, err)
 				continue
+			}
+
+			if config.ResizeTiles {
+				img = imaging.Fill(img, config.TileSize, config.TileSize, imaging.Center, imaging.Lanczos)
 			}
 
 			out <- imageColor{

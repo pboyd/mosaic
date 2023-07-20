@@ -80,15 +80,17 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	start := time.Now()
-	tileImages := mosaic.BuildImageList(ctx, workers, tileImagesPath)
-	fmt.Printf("Loaded %d tile images in %s\n", tileImages.Len(), time.Since(start))
-
-	outputImage := mosaic.Generate(ctx, sourceImage, tileImages, mosaic.Config{
+	config := mosaic.Config{
 		TileSize: tileSize,
 		Workers:  workers,
 		Blend:    blend,
-	})
+	}
+
+	start := time.Now()
+	tileImages := mosaic.BuildImageList(ctx, tileImagesPath, config)
+	fmt.Printf("Loaded %d tile images in %s\n", tileImages.Len(), time.Since(start))
+
+	outputImage := mosaic.Generate(ctx, sourceImage, tileImages, config)
 
 	err = writeImage(outputImage, outFile)
 	if err != nil {
