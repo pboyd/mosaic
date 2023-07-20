@@ -20,4 +20,7 @@ This is still in an early stage of development, but it is currently functional. 
 
 ## Credit
 
-The Go Gopher was created by [Renee French](http://reneefrench.blogspot.com/).
+For the example image:
+- The Go Gopher was designed by [Renee French](http://reneefrench.blogspot.com/)
+- Base image by [Takuya Ueda](https://github.com/golang-samples/gopher-vector)
+- Tile images were gathered from around the internet, but mainly the [Go blog](https://go.dev/blog/gopher)

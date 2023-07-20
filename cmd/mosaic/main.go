@@ -22,17 +22,17 @@ import (
 var tileImagesPath string
 var sourceImagePath string
 var outputImagePath string
-var tileSize int
-var workers int
-var blend bool
+
+var config mosaic.Config
 
 func init() {
 	flag.StringVar(&sourceImagePath, "image", "", "Path to source image")
 	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
-	flag.IntVar(&tileSize, "size", 10, "Tile size")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
-	flag.IntVar(&workers, "workers", runtime.NumCPU(), "Number of workers")
-	flag.BoolVar(&blend, "blend", false, "For transparent images, blend the tile images onto the source image")
+	flag.IntVar(&config.TileSize, "size", 10, "Tile size")
+	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Number of workers")
+	flag.BoolVar(&config.Blend, "blend", false, "For transparent images, blend the tile images onto the source image")
+	flag.Float64Var(&config.Scale, "scale", 1.0, "Scale the source image by this factor")
 	flag.Parse()
 
 	if sourceImagePath == "" {
@@ -49,7 +49,7 @@ func init() {
 		outputImagePath = deriveOutputImagePath(sourceImagePath)
 	}
 
-	if tileSize < 1 {
+	if config.TileSize < 1 {
 		fmt.Fprintln(os.Stderr, "Invalid tile size")
 		os.Exit(1)
 	}
@@ -79,12 +79,6 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-
-	config := mosaic.Config{
-		TileSize: tileSize,
-		Workers:  workers,
-		Blend:    blend,
-	}
 
 	start := time.Now()
 	tileImages := mosaic.BuildImageList(ctx, tileImagesPath, config)
