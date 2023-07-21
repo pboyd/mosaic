@@ -84,7 +84,7 @@ func findImageColor(ch <-chan string, config Config) <-chan imageColor {
 			}
 
 			if config.ResizeTiles {
-				img = imaging.Fill(img, config.TileSize, config.TileSize, imaging.Center, imaging.Lanczos)
+				img = imaging.Fill(img, config.TileWidth, config.TileHeight, imaging.Center, imaging.Lanczos)
 			}
 
 			out <- imageColor{

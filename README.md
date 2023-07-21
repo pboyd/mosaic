@@ -9,16 +9,14 @@ This is still in an early stage of development, but it is currently functional. 
 This was generated with:
 
 ```
-./mosaic -image gopher.png -tiles gophers/ -scale 3.0 -size 50 -blend
+./mosaic -image gopher.png -tiles gophers/ -tile-width 50 -tile-height 70 -blend
 ```
-
 
 ## Usage
 
 - Ensure a recent version of Go is installed.
 - Clone this repo
 - Inside this project's directory run: `go build ./cmd/mosaic`
-
 
 ```
 ./mosaic -image source.jpg -out output.jpg -tiles path/to/tile/images

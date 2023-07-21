@@ -23,13 +23,19 @@ var tileImagesPath string
 var sourceImagePath string
 var outputImagePath string
 
-var config mosaic.Config
+var config = mosaic.Config{
+	ResizeTiles: true,
+}
 
 func init() {
+	var tileSize int
+
 	flag.StringVar(&sourceImagePath, "image", "", "Path to source image")
 	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
-	flag.IntVar(&config.TileSize, "size", 10, "Tile size")
+	flag.IntVar(&tileSize, "size", 10, "Tile size")
+	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width")
+	flag.IntVar(&config.TileHeight, "tile-height", 0, "Tile height")
 	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Number of workers")
 	flag.BoolVar(&config.Blend, "blend", false, "For transparent images, blend the tile images onto the source image")
 	flag.Float64Var(&config.Scale, "scale", 1.0, "Scale the source image by this factor")
@@ -49,7 +55,13 @@ func init() {
 		outputImagePath = deriveOutputImagePath(sourceImagePath)
 	}
 
-	if config.TileSize < 1 {
+	if config.TileWidth == 0 {
+		config.TileWidth = tileSize
+	}
+	if config.TileHeight == 0 {
+		config.TileHeight = tileSize
+	}
+	if config.TileWidth <= 0 || config.TileHeight <= 0 {
 		fmt.Fprintln(os.Stderr, "Invalid tile size")
 		os.Exit(1)
 	}

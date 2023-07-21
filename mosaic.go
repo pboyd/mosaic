@@ -15,11 +15,13 @@ import (
 
 // Config contains options for mosaic generation.
 type Config struct {
-	TileSize int
-	Workers  int
-	Blend    bool
+	Workers int
+	Blend   bool
 
 	Scale float64
+
+	TileWidth  int
+	TileHeight int
 
 	// ResizeTiles indicates whether the tile images should be resized before
 	// determining their primary color.
@@ -34,7 +36,7 @@ func Generate(ctx context.Context, src image.Image, tileImages *ImageList, confi
 		draw.Copy(output, src.Bounds().Min, src, src.Bounds(), draw.Src, nil)
 	}
 
-	tiles := tileize(ctx, src, config.TileSize)
+	tiles := tileize(ctx, src, config)
 
 	var wg sync.WaitGroup
 	wg.Add(config.Workers)
@@ -51,15 +53,15 @@ func Generate(ctx context.Context, src image.Image, tileImages *ImageList, confi
 }
 
 // tileize divides the source image into tiles.
-func tileize(ctx context.Context, src image.Image, tileSize int) <-chan image.Image {
+func tileize(ctx context.Context, src image.Image, config Config) <-chan image.Image {
 	ch := make(chan image.Image)
 	go func() {
 		defer close(ch)
 
 		bounds := src.Bounds()
-		for x := bounds.Min.X; x < bounds.Max.X; x += tileSize {
-			for y := bounds.Min.Y; y < bounds.Max.Y; y += tileSize {
-				r := image.Rect(x, y, x+tileSize, y+tileSize)
+		for x := bounds.Min.X; x < bounds.Max.X; x += config.TileWidth {
+			for y := bounds.Min.Y; y < bounds.Max.Y; y += config.TileHeight {
+				r := image.Rect(x, y, x+config.TileWidth, y+config.TileHeight)
 				if r.Max.X > bounds.Max.X {
 					r.Max.X = bounds.Max.X
 				}
@@ -111,7 +113,7 @@ func matchAndSwapTiles(output draw.Image, tiles <-chan image.Image, tileImages *
 			continue
 		}
 
-		replacement = imaging.Fill(replacement, config.TileSize, config.TileSize, imaging.Center, imaging.Lanczos)
+		replacement = imaging.Fill(replacement, config.TileWidth, config.TileHeight, imaging.Center, imaging.Lanczos)
 		if config.Blend {
 			draw.Draw(output, tile.Bounds(), replacement, image.ZP, draw.Over)
 		} else {
