@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/pboyd/mosaic"
 
@@ -23,7 +24,7 @@ var sourceImagePath string
 var outputImagePath string
 
 var config = mosaic.Config{
-	ResizeTiles: true,
+	//ResizeTiles: true,
 }
 
 func init() {
@@ -93,11 +94,16 @@ func main() {
 	defer cancel()
 
 	index := mosaic.NewIndex(config)
+
+	start := time.Now()
 	err = index.AddPath(ctx, tileImagesPath)
+	elapsed := time.Since(start)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error indexing tile images: %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Indexed %d images in %s\n", index.Len(), elapsed)
 
 	outputImage := mosaic.Generate(ctx, src, index, config)
 
