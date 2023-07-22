@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // Generate generates a mosaic image from the source image and the tile images.
-func Generate(ctx context.Context, src image.Image, tileImages *ImageList, config Config) image.Image {
+func Generate(ctx context.Context, src image.Image, tileImages *Index, config Config) image.Image {
 	src = imaging.Resize(src, int(float64(src.Bounds().Dx())*config.Scale), 0, imaging.Lanczos)
 	output := image.NewRGBA(src.Bounds())
 	if config.Blend {
@@ -97,9 +97,9 @@ func pickOne(s []string) string {
 	return s[rand.Intn(len(s))]
 }
 
-func matchAndSwapTiles(output draw.Image, tiles <-chan image.Image, tileImages *ImageList, config Config) {
+func matchAndSwapTiles(output draw.Image, tiles <-chan image.Image, tileImages *Index, config Config) {
 	for tile := range tiles {
-		c := primaryColor(tile)
+		c := primaryColor(tile, 0.01)
 		if c == math.MaxUint32 {
 			continue
 		}

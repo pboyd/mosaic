@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/pboyd/mosaic"
 
@@ -34,8 +33,8 @@ func init() {
 	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
 	flag.IntVar(&tileSize, "size", 10, "Tile size")
-	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width")
-	flag.IntVar(&config.TileHeight, "tile-height", 0, "Tile height")
+	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width (overrides -size)")
+	flag.IntVar(&config.TileHeight, "tile-height", 0, "Tile height (overrides -size)")
 	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Number of workers")
 	flag.BoolVar(&config.Blend, "blend", false, "For transparent images, blend the tile images onto the source image")
 	flag.Float64Var(&config.Scale, "scale", 1.0, "Scale the source image by this factor")
@@ -76,12 +75,13 @@ func init() {
 }
 
 func main() {
-	sourceImage, err := loadImage(sourceImagePath)
+	src, err := loadImage(sourceImagePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
+	// Create the output file now so we can fail early if there's a problem.
 	outFile, err := os.Create(outputImagePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -92,11 +92,14 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	start := time.Now()
-	tileImages := mosaic.BuildImageList(ctx, tileImagesPath, config)
-	fmt.Printf("Loaded %d tile images in %s\n", tileImages.Len(), time.Since(start))
+	index := mosaic.NewIndex(config)
+	err = index.AddPath(ctx, tileImagesPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error indexing tile images: %v\n", err)
+		os.Exit(1)
+	}
 
-	outputImage := mosaic.Generate(ctx, sourceImage, tileImages, config)
+	outputImage := mosaic.Generate(ctx, src, index, config)
 
 	err = writeImage(outputImage, outFile)
 	if err != nil {
