@@ -2,9 +2,11 @@
 
 Generates images from many small tiles.
 
-This is still in an early stage of development, but it is currently functional. Here's an example, click to enlarge:
+Here's an example:
 
 [![Go Gopher](https://raw.githubusercontent.com/pboyd/mosaic/master/examples/gopher.small.png)](https://raw.githubusercontent.com/pboyd/mosaic/master/examples/gopher.png)
+
+(click to enlarge)
 
 This was generated with:
 
@@ -24,7 +26,14 @@ This was generated with:
 
 ## Credit
 
+In addition to the Go standard library, this program also uses the following modules. Many thanks to their authors.
+
+- [github.com/marekm4/color-extractor](https://github.com/marekm4/color-extractor) finds the primary color of images and tiles.
+- The KNN implementation from [github.com/cdipaolo/goml](https://github.com/cdipaolo/goml) finds the closest match for a tile color.
+- [github.com/disintegration/imaging](github.com/disintegration/imaging) handles all the image resizing.
+
 For the example image:
+
 - The Go Gopher was designed by [Renee French](http://reneefrench.blogspot.com/)
 - Base image by [Takuya Ueda](https://github.com/golang-samples/gopher-vector)
 - Tile images were gathered from around the internet, but mainly the [Go blog](https://go.dev/blog/gopher)

@@ -158,7 +158,7 @@ func (idx *Index) worker(ch <-chan string) <-chan imageColor {
 
 			out <- imageColor{
 				Path:  path,
-				Color: primaryColor(img, 0.01),
+				Color: primaryColor(img, idx.config.IndexThreshold),
 			}
 		}
 	}()

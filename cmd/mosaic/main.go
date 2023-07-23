@@ -25,6 +25,7 @@ var outputImagePath string
 
 var config = mosaic.Config{
 	//ResizeTiles: true,
+	IndexThreshold: 0.5,
 }
 
 func init() {
@@ -39,6 +40,7 @@ func init() {
 	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Number of workers")
 	flag.BoolVar(&config.Blend, "blend", false, "For transparent images, blend the tile images onto the source image")
 	flag.Float64Var(&config.Scale, "scale", 1.0, "Scale the source image by this factor")
+	flag.Float64Var(&config.IndexThreshold, "index-threshold", 0.5, "Percentage of an image that must be of a particular color to be indexed")
 	flag.Parse()
 
 	if sourceImagePath == "" {

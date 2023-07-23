@@ -26,6 +26,8 @@ type Config struct {
 	// ResizeTiles indicates whether the tile images should be resized before
 	// determining their primary color.
 	ResizeTiles bool
+
+	IndexThreshold float64
 }
 
 // Generate generates a mosaic image from the source image and the tile images.
