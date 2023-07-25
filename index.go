@@ -70,6 +70,52 @@ func (idx *Index) FindNearest(color uint32) (uint32, []string) {
 
 // AddPath finds and indexes images from the given path.
 func (idx *Index) AddPath(ctx context.Context, path string) error {
+	if idx.config.Workers > 1 {
+		return idx.addPathConcurrent(ctx, path)
+	}
+	return idx.addPath(ctx, path)
+}
+
+func (idx *Index) addPath(ctx context.Context, path string) error {
+	done := ctx.Done()
+
+	return filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Printf("%s: %s", path, err)
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		switch ext {
+		case ".jpg", ".jpeg", ".png", ".gif":
+		default:
+			return nil
+		}
+
+		log.Printf("found image %s", path)
+		img, err := loadImage(path)
+		if err != nil {
+			log.Printf("%s: %s", path, err)
+			return nil
+		}
+
+		if idx.config.ResizeTiles {
+			img = imaging.Fill(img, idx.config.TileWidth, idx.config.TileHeight, imaging.Center, imaging.Lanczos)
+		}
+
+		idx.insert(primaryColor(img, idx.config.IndexThreshold), path)
+
+		select {
+		case <-done:
+			return ctx.Err()
+		default:
+		}
+
+		return nil
+	})
+}
+
+func (idx *Index) addPathConcurrent(ctx context.Context, path string) error {
 	pathCh := idx.findImages(ctx, path)
 
 	colorChs := make([]<-chan imageColor, idx.config.Workers)
