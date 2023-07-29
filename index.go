@@ -24,6 +24,9 @@ var ErrNoImagesFound = errors.New("no images found")
 
 // Index is a list of images that can be accessed by color.
 type Index struct {
+	// StatusHandler is called by AddPath to report the progress of the index operation.
+	StatusHandler func(<-chan IndexImage)
+
 	config Config
 
 	model *cluster.KNN
@@ -31,6 +34,13 @@ type Index struct {
 	paths        map[uint32][]string
 	trainingData [][]float64
 	expected     []float64
+}
+
+// IndexImage reports the progress of an index operation.
+type IndexImage struct {
+	Path  string
+	Color uint32
+	Err   error
 }
 
 // NewIndex creates a new, empty, image index.
@@ -55,14 +65,12 @@ func (idx *Index) Len() int {
 func (idx *Index) FindNearest(color uint32) (uint32, []string) {
 	guess, err := idx.model.Predict(colorVector(color))
 	if err != nil {
-		log.Printf("error finding nearest color: %v", err)
 		return 0, nil
 	}
 
 	nearestColor := uint32(guess[0])
 	paths, ok := idx.paths[nearestColor]
 	if !ok {
-		log.Printf("no images found for color %v", nearestColor)
 		return 0, nil
 	}
 	return nearestColor, paths
@@ -70,16 +78,25 @@ func (idx *Index) FindNearest(color uint32) (uint32, []string) {
 
 // AddPath finds and indexes images from the given path.
 func (idx *Index) AddPath(ctx context.Context, path string) error {
+	statusCh := make(chan IndexImage, idx.config.Workers*2)
+	statusHandler := defaultStatusHandler
+	if idx.StatusHandler != nil {
+		statusHandler = idx.StatusHandler
+	}
+	go statusHandler(statusCh)
+
 	pathCh := idx.findImages(ctx, path)
 
-	colorChs := make([]<-chan imageColor, idx.config.Workers)
+	colorChs := make([]<-chan IndexImage, idx.config.Workers)
 	for i := range colorChs {
 		colorChs[i] = idx.worker(pathCh)
 	}
 
-	for found := range mergeColorChannels(colorChs...) {
-		log.Printf("found image %s", found.Path)
-		idx.insert(found.Color, found.Path)
+	for found := range idx.mergeColorChannels(colorChs...) {
+		if found.Err == nil {
+			found.Err = idx.insert(found.Color, found.Path)
+		}
+		statusCh <- found
 	}
 
 	if idx.Len() == 0 {
@@ -89,33 +106,30 @@ func (idx *Index) AddPath(ctx context.Context, path string) error {
 	return nil
 }
 
-func (idx *Index) insert(color uint32, path string) {
+func defaultStatusHandler(ch <-chan IndexImage) {
+	for range ch {
+		// do nothing
+	}
+}
+
+func (idx *Index) insert(color uint32, path string) error {
 	if _, exists := idx.paths[color]; exists {
 		idx.paths[color] = append(idx.paths[color], path)
-		return
+		return nil
 	}
 	idx.paths[color] = []string{path}
 
 	idx.trainingData = append(idx.trainingData, colorVector(color))
 	idx.expected = append(idx.expected, float64(color))
-	err := idx.model.UpdateTrainingSet(idx.trainingData, idx.expected)
-	if err != nil {
-		// FIXME: really need to handle this better.
-		log.Printf("error updating training set: %v", err)
-	}
+	return idx.model.UpdateTrainingSet(idx.trainingData, idx.expected)
 }
 
-func (idx *Index) findImages(ctx context.Context, path string) <-chan string {
-	ch := make(chan string)
+func (idx *Index) findImages(ctx context.Context, path string) <-chan IndexImage {
+	ch := make(chan IndexImage)
 	go func() {
 		defer close(ch)
 
 		err := filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				log.Printf("%s: %s", path, err)
-				return nil
-			}
-
 			ext := strings.ToLower(filepath.Ext(path))
 			switch ext {
 			case ".jpg", ".jpeg", ".png", ".gif":
@@ -123,8 +137,13 @@ func (idx *Index) findImages(ctx context.Context, path string) <-chan string {
 				return nil
 			}
 
+			ii := IndexImage{
+				Path: path,
+				Err:  err,
+			}
+
 			select {
-			case ch <- path:
+			case ch <- ii:
 			case <-ctx.Done():
 				return fs.SkipAll
 			}
@@ -138,43 +157,42 @@ func (idx *Index) findImages(ctx context.Context, path string) <-chan string {
 	return ch
 }
 
-type imageColor struct {
-	Path  string
-	Color uint32
-}
-
-func (idx *Index) worker(ch <-chan string) <-chan imageColor {
-	out := make(chan imageColor)
+func (idx *Index) worker(ch <-chan IndexImage) <-chan IndexImage {
+	out := make(chan IndexImage)
 	go func() {
 		defer close(out)
-		for path := range ch {
-			img, err := loadImage(path)
-			if err != nil {
-				log.Printf("%s: %s", path, err)
-				continue
+
+		for ii := range ch {
+			if ii.Err == nil {
+				ii.Color, ii.Err = idx.processOne(ii.Path)
 			}
 
-			if idx.config.ResizeTiles {
-				img = imaging.Fill(img, idx.config.TileWidth, idx.config.TileHeight, imaging.Center, imaging.Lanczos)
-			}
-
-			out <- imageColor{
-				Path:  path,
-				Color: primaryColor(img, idx.config.IndexThreshold),
-			}
+			out <- ii
 		}
 	}()
 
 	return out
 }
 
-func mergeColorChannels(chs ...<-chan imageColor) <-chan imageColor {
-	out := make(chan imageColor)
+func (idx *Index) processOne(path string) (uint32, error) {
+	img, err := loadImage(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if idx.config.ResizeTiles {
+		img = imaging.Fill(img, idx.config.TileWidth, idx.config.TileHeight, imaging.Center, imaging.Lanczos)
+	}
+	return primaryColor(img, idx.config.IndexThreshold), nil
+}
+
+func (idx *Index) mergeColorChannels(chs ...<-chan IndexImage) <-chan IndexImage {
+	out := make(chan IndexImage)
 
 	var wg sync.WaitGroup
 	wg.Add(len(chs))
 	for _, ch := range chs {
-		go func(ch <-chan imageColor) {
+		go func(ch <-chan IndexImage) {
 			defer wg.Done()
 			for img := range ch {
 				out <- img

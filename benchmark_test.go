@@ -120,6 +120,7 @@ func BenchmarkSwap(b *testing.B) {
 }
 
 func benchmarkIndex(b *testing.B) *Index {
+	// colors is a file containing a list of colors encoded as 32-bit integers.
 	buf, err := os.ReadFile("testfiles/colors")
 	if err != nil {
 		b.Fatal(err)
@@ -127,7 +128,10 @@ func benchmarkIndex(b *testing.B) *Index {
 
 	index := NewIndex(Config{})
 	for i := 0; i < len(buf); i += 4 {
-		index.insert(binary.LittleEndian.Uint32(buf[i:]), "testfiles/cat.jpg")
+		err = index.insert(binary.LittleEndian.Uint32(buf[i:]), "testfiles/cat.jpg")
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	return index
