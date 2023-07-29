@@ -120,7 +120,7 @@ func matchAndSwapTiles(output draw.Image, tiles <-chan image.Image, tileImages *
 
 		replacement = imaging.Fill(replacement, config.TileWidth, config.TileHeight, imaging.Center, imaging.Lanczos)
 		if config.Blend {
-			draw.Draw(output, tile.Bounds(), replacement, image.ZP, draw.Over)
+			draw.Draw(output, tile.Bounds(), replacement, image.Point{}, draw.Over)
 		} else {
 			draw.Copy(output, tile.Bounds().Min, replacement, replacement.Bounds(), draw.Src, nil)
 		}

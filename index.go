@@ -98,7 +98,11 @@ func (idx *Index) insert(color uint32, path string) {
 
 	idx.trainingData = append(idx.trainingData, colorVector(color))
 	idx.expected = append(idx.expected, float64(color))
-	idx.model.UpdateTrainingSet(idx.trainingData, idx.expected)
+	err := idx.model.UpdateTrainingSet(idx.trainingData, idx.expected)
+	if err != nil {
+		// FIXME: really need to handle this better.
+		log.Printf("error updating training set: %v", err)
+	}
 }
 
 func (idx *Index) findImages(ctx context.Context, path string) <-chan string {

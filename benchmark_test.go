@@ -20,7 +20,11 @@ func BenchmarkIndexLarge(b *testing.B) {
 	cfg := Config{
 		Workers: runtime.GOMAXPROCS(0),
 	}
-	NewIndex(cfg).AddPath(context.Background(), tmp)
+
+	err := NewIndex(cfg).AddPath(context.Background(), tmp)
+	if err != nil {
+		b.Fatal(err)
+	}
 }
 
 func BenchmarkIndexTiny(b *testing.B) {
@@ -30,7 +34,10 @@ func BenchmarkIndexTiny(b *testing.B) {
 	cfg := Config{
 		Workers: runtime.GOMAXPROCS(0),
 	}
-	NewIndex(cfg).AddPath(context.Background(), tmp)
+	err := NewIndex(cfg).AddPath(context.Background(), tmp)
+	if err != nil {
+		b.Fatal(err)
+	}
 }
 
 // makeTestImages creates b.N test images in a temporary directory.
