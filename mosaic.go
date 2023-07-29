@@ -32,7 +32,10 @@ type Config struct {
 
 // Generate generates a mosaic image from the source image and the tile images.
 func Generate(ctx context.Context, src image.Image, tileImages *Index, config Config) image.Image {
-	src = imaging.Resize(src, int(float64(src.Bounds().Dx())*config.Scale), 0, imaging.Lanczos)
+	if config.Scale != 0 {
+		src = imaging.Resize(src, int(float64(src.Bounds().Dx())*config.Scale), 0, imaging.Lanczos)
+	}
+
 	output := image.NewRGBA(src.Bounds())
 	if config.Blend {
 		draw.Copy(output, src.Bounds().Min, src, src.Bounds(), draw.Src, nil)

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func loadTestImage(t *testing.T, path string) image.Image {
+func loadTestImage(t testing.TB, path string) image.Image {
 	fh, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
