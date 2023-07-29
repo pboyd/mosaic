@@ -77,14 +77,12 @@ func (idx *Index) AddPath(ctx context.Context, path string) error {
 		colorChs[i] = idx.worker(pathCh)
 	}
 
-	var count int
 	for found := range mergeColorChannels(colorChs...) {
 		log.Printf("found image %s", found.Path)
 		idx.insert(found.Color, found.Path)
-		count++
 	}
 
-	if count == 0 {
+	if idx.Len() == 0 {
 		return ErrNoImagesFound
 	}
 
