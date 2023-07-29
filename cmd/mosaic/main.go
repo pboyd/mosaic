@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -96,6 +97,15 @@ func main() {
 	defer cancel()
 
 	index := mosaic.NewIndex(config)
+	index.StatusHandler = func(imgs <-chan mosaic.IndexImage) {
+		for ii := range imgs {
+			if ii.Err != nil {
+				fmt.Fprintf(os.Stderr, "Error indexing %s: %v\n", ii.Path, ii.Err)
+			} else {
+				log.Printf("%s: %.6x", ii.Path, ii.Color)
+			}
+		}
+	}
 
 	start := time.Now()
 	err = index.AddPath(ctx, tileImagesPath)
