@@ -3,7 +3,6 @@ package mosaic
 import (
 	"context"
 	"image"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -30,43 +29,69 @@ type Config struct {
 	IndexThreshold float64
 }
 
+// Generator generates a mosaic image from the source image and the tile images.
+type Generator struct {
+	config        Config
+	index         *Index
+	StatusHandler func(<-chan GeneratorStatus)
+}
+
+// NewGenerator creates a new Generator.
+func NewGenerator(config Config, index *Index) *Generator {
+	return &Generator{
+		config: config,
+		index:  index,
+	}
+}
+
+// GeneratorStatus contains the status of the mosaic generation.
+type GeneratorStatus struct {
+	Bounds     image.Rectangle
+	TileNumber int
+	TotalTiles int
+	Path       string
+	Err        error
+}
+
 // Generate generates a mosaic image from the source image and the tile images.
-func Generate(ctx context.Context, src image.Image, tileImages *Index, config Config) image.Image {
-	if config.Scale != 0 {
-		src = imaging.Resize(src, int(float64(src.Bounds().Dx())*config.Scale), 0, imaging.Lanczos)
+func (g *Generator) Generate(ctx context.Context, src image.Image) image.Image {
+	if g.config.Scale != 0 {
+		src = imaging.Resize(src, int(float64(src.Bounds().Dx())*g.config.Scale), 0, imaging.Lanczos)
 	}
 
 	output := image.NewRGBA(src.Bounds())
-	if config.Blend {
+	if g.config.Blend {
 		draw.Copy(output, src.Bounds().Min, src, src.Bounds(), draw.Src, nil)
 	}
 
-	tiles := tileize(ctx, src, config)
+	tiles := g.tileize(ctx, src)
 
-	var wg sync.WaitGroup
-	wg.Add(config.Workers)
-	for i := 0; i < config.Workers; i++ {
-		go func() {
-			defer wg.Done()
-			matchAndSwapTiles(output, tiles, tileImages, config)
-		}()
+	statusChans := make([]<-chan GeneratorStatus, g.config.Workers)
+	for i := 0; i < g.config.Workers; i++ {
+		statusChans[i] = g.matchAndSwapTiles(output, tiles)
 	}
 
-	wg.Wait()
+	g.wait(statusChans)
 
 	return output
 }
 
+func (*Generator) defaultStatusHandler(ch <-chan GeneratorStatus) {
+	for range ch {
+		// do nothing
+	}
+}
+
 // tileize divides the source image into tiles.
-func tileize(ctx context.Context, src image.Image, config Config) <-chan image.Image {
+func (g *Generator) tileize(ctx context.Context, src image.Image) <-chan image.Image {
 	ch := make(chan image.Image)
 	go func() {
 		defer close(ch)
 
 		bounds := src.Bounds()
-		for x := bounds.Min.X; x < bounds.Max.X; x += config.TileWidth {
-			for y := bounds.Min.Y; y < bounds.Max.Y; y += config.TileHeight {
-				r := image.Rect(x, y, x+config.TileWidth, y+config.TileHeight)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y += g.config.TileHeight {
+			for x := bounds.Min.X; x < bounds.Max.X; x += g.config.TileWidth {
+				r := image.Rect(x, y, x+g.config.TileWidth, y+g.config.TileHeight)
 				if r.Max.X > bounds.Max.X {
 					r.Max.X = bounds.Max.X
 				}
@@ -102,29 +127,73 @@ func pickOne(s []string) string {
 	return s[rand.Intn(len(s))]
 }
 
-func matchAndSwapTiles(output draw.Image, tiles <-chan image.Image, tileImages *Index, config Config) {
-	for tile := range tiles {
-		c := primaryColor(tile, 0.01)
-		if c == math.MaxUint32 {
-			continue
-		}
+func (g *Generator) matchAndSwapTiles(output draw.Image, tiles <-chan image.Image) <-chan GeneratorStatus {
+	out := make(chan GeneratorStatus)
+	go func() {
+		defer close(out)
 
-		_, paths := tileImages.FindNearest(c)
-		log.Printf("(%d, %d) - %.6x -> %v", tile.Bounds().Min.X, tile.Bounds().Min.Y, c, paths)
-		replacement, err := loadImage(pickOne(paths))
-		if err != nil {
-			// This shouldn't happen, because we already loaded all the images.
-			log.Printf("Failed to load image: %v", err)
-			continue
-		}
+		for tile := range tiles {
+			status := tileStats(output.Bounds(), tile.Bounds())
 
-		replacement = imaging.Fill(replacement, config.TileWidth, config.TileHeight, imaging.Center, imaging.Lanczos)
-		if config.Blend {
-			draw.Draw(output, tile.Bounds(), replacement, image.Point{}, draw.Over)
-		} else {
-			draw.Copy(output, tile.Bounds().Min, replacement, replacement.Bounds(), draw.Src, nil)
+			c := primaryColor(tile, 0.01)
+			if c == math.MaxUint32 {
+				continue
+			}
+
+			_, paths := g.index.FindNearest(c)
+			path := pickOne(paths)
+			status.Path = path
+
+			replacement, err := loadImage(path)
+			if err != nil {
+				// This shouldn't happen, because we already loaded all the images.
+				status.Err = err
+				out <- status
+				continue
+			}
+
+			replacement = imaging.Fill(replacement, g.config.TileWidth, g.config.TileHeight, imaging.Center, imaging.Lanczos)
+			if g.config.Blend {
+				draw.Draw(output, tile.Bounds(), replacement, image.Point{}, draw.Over)
+			} else {
+				draw.Copy(output, tile.Bounds().Min, replacement, replacement.Bounds(), draw.Src, nil)
+			}
+			out <- status
 		}
+	}()
+	return out
+}
+
+func tileStats(imageBounds, tileBounds image.Rectangle) GeneratorStatus {
+	row := tileBounds.Min.X / tileBounds.Dx()
+	col := tileBounds.Min.Y / tileBounds.Dy()
+	return GeneratorStatus{
+		Bounds:     tileBounds,
+		TotalTiles: (imageBounds.Dx() / tileBounds.Dx()) * (imageBounds.Dy() / tileBounds.Dy()),
+		TileNumber: 1 + row + col*(imageBounds.Dx()/tileBounds.Dx()),
 	}
+}
+
+func (g *Generator) wait(statusChans []<-chan GeneratorStatus) {
+	statusCh := make(chan GeneratorStatus, g.config.Workers*2)
+	statusHandler := g.defaultStatusHandler
+	if g.StatusHandler != nil {
+		statusHandler = g.StatusHandler
+	}
+
+	go statusHandler(statusCh)
+
+	var wg sync.WaitGroup
+	wg.Add(len(statusChans))
+	for _, ch := range statusChans {
+		go func(ch <-chan GeneratorStatus) {
+			for s := range ch {
+				statusCh <- s
+			}
+			wg.Done()
+		}(ch)
+	}
+	wg.Wait()
 }
 
 func loadImage(path string) (image.Image, error) {
