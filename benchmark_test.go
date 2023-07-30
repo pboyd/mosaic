@@ -112,10 +112,12 @@ func BenchmarkSwap(b *testing.B) {
 	//fmt.Printf("passes=%d tileArea=%.02f tileWidth=%d tileHeight=%d\n", passes, tileArea, cfg.TileWidth, cfg.TileHeight)
 	//fmt.Printf("n=%d a=%d\n", b.N, passes*int(area/tileArea))
 
+	generator := NewGenerator(cfg, idx)
+
 	b.ResetTimer()
 
 	for i := 0; i < passes; i++ {
-		Generate(context.Background(), src, idx, cfg)
+		generator.Generate(context.Background(), src)
 	}
 }
 

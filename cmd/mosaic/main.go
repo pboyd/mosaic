@@ -35,7 +35,7 @@ func init() {
 	flag.StringVar(&sourceImagePath, "image", "", "Path to source image")
 	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
-	flag.IntVar(&tileSize, "size", 10, "Tile size")
+	flag.IntVar(&tileSize, "size", 25, "Tile size")
 	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width (overrides -size)")
 	flag.IntVar(&config.TileHeight, "tile-height", 0, "Tile height (overrides -size)")
 	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Number of workers")
@@ -117,7 +117,17 @@ func main() {
 
 	fmt.Printf("Indexed %d images in %s\n", index.Len(), elapsed)
 
-	outputImage := mosaic.Generate(ctx, src, index, config)
+	generator := mosaic.NewGenerator(config, index)
+	generator.StatusHandler = func(imgs <-chan mosaic.GeneratorStatus) {
+		for gs := range imgs {
+			if gs.Err != nil {
+				fmt.Fprintf(os.Stderr, "Error generating %s: %v\n", gs.Path, gs.Err)
+			} else {
+				log.Printf("%d/%d: %s", gs.TileNumber, gs.TotalTiles, gs.Path)
+			}
+		}
+	}
+	outputImage := generator.Generate(ctx, src)
 
 	err = writeImage(outputImage, outFile)
 	if err != nil {

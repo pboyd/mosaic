@@ -79,7 +79,7 @@ func (idx *Index) FindNearest(color uint32) (uint32, []string) {
 // AddPath finds and indexes images from the given path.
 func (idx *Index) AddPath(ctx context.Context, path string) error {
 	statusCh := make(chan IndexImage, idx.config.Workers*2)
-	statusHandler := defaultStatusHandler
+	statusHandler := idx.defaultStatusHandler
 	if idx.StatusHandler != nil {
 		statusHandler = idx.StatusHandler
 	}
@@ -106,7 +106,7 @@ func (idx *Index) AddPath(ctx context.Context, path string) error {
 	return nil
 }
 
-func defaultStatusHandler(ch <-chan IndexImage) {
+func (*Index) defaultStatusHandler(ch <-chan IndexImage) {
 	for range ch {
 		// do nothing
 	}
