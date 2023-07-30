@@ -183,7 +183,7 @@ func (idx *Index) processOne(path string) (uint32, error) {
 	if idx.config.ResizeTiles {
 		img = imaging.Fill(img, idx.config.TileWidth, idx.config.TileHeight, imaging.Center, imaging.Lanczos)
 	}
-	return primaryColor(img, idx.config.IndexThreshold), nil
+	return primaryColor(img, idx.config.IndexThreshold)
 }
 
 func (idx *Index) mergeColorChannels(chs ...<-chan IndexImage) <-chan IndexImage {
