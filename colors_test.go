@@ -15,7 +15,7 @@ func TestPrimaryColor(t *testing.T) {
 	crop := img.(interface {
 		SubImage(r image.Rectangle) image.Image
 	}).SubImage(image.Rect(10, 10, 20, 20))
-	c := primaryColor(crop, 0.01)
-
+	c, err := primaryColor(crop, 0.01)
+	assert.NoError(err)
 	assert.Equal(uint32(0xff00ff), c)
 }

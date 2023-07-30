@@ -5,15 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/pboyd/mosaic"
+
+	"github.com/schollz/progressbar/v3"
 
 	"image/gif"
 	"image/jpeg"
@@ -98,32 +98,39 @@ func main() {
 
 	index := mosaic.NewIndex(config)
 	index.StatusHandler = func(imgs <-chan mosaic.IndexImage) {
+		bar := progressbar.Default(-1)
 		for ii := range imgs {
 			if ii.Err != nil {
-				fmt.Fprintf(os.Stderr, "Error indexing %s: %v\n", ii.Path, ii.Err)
+				fmt.Fprintf(os.Stderr, "\rError indexing %s: %v\n", ii.Path, ii.Err)
 			} else {
-				log.Printf("%s: %.6x", ii.Path, ii.Color)
+				//nolint:errcheck
+				bar.Add(1)
 			}
 		}
 	}
 
-	start := time.Now()
 	err = index.AddPath(ctx, tileImagesPath)
-	elapsed := time.Since(start)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error indexing tile images: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Indexed %d images in %s\n", index.Len(), elapsed)
-
 	generator := mosaic.NewGenerator(config, index)
-	generator.StatusHandler = func(imgs <-chan mosaic.GeneratorStatus) {
+	generator.StatusHandler = func(total int64, imgs <-chan mosaic.GeneratorStatus) {
+		bar := progressbar.Default(total)
+		last := 0
 		for gs := range imgs {
 			if gs.Err != nil {
-				fmt.Fprintf(os.Stderr, "Error generating %s: %v\n", gs.Path, gs.Err)
-			} else {
-				log.Printf("%d/%d: %s", gs.TileNumber, gs.TotalTiles, gs.Path)
+				fmt.Fprintf(os.Stderr, "\rError generating %s: %v\n", gs.Path, gs.Err)
+				continue
+			}
+
+			// TileNumber may be out of order, so we need to keep track of the last
+			// tile number we saw.
+			if gs.TileNumber > last {
+				//nolint:errcheck
+				bar.Add(gs.TileNumber - last)
+				last = gs.TileNumber
 			}
 		}
 	}

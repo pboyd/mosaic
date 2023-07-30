@@ -1,12 +1,15 @@
 package mosaic
 
 import (
+	"errors"
 	"image"
 	"image/color"
-	"math"
 
 	color_extractor "github.com/marekm4/color-extractor"
 )
+
+// ErrNoPrimaryColor is returned when no primary color is found in the image.
+var ErrNoPrimaryColor = errors.New("no primary color found")
 
 func colorVector(c uint32) []float64 {
 	return []float64{
@@ -16,15 +19,15 @@ func colorVector(c uint32) []float64 {
 	}
 }
 
-func primaryColor(img image.Image, smallBucket float64) uint32 {
+func primaryColor(img image.Image, smallBucket float64) (uint32, error) {
 	colors := color_extractor.ExtractColorsWithConfig(img, color_extractor.Config{
 		SmallBucket: smallBucket,
 		DownSizeTo:  224,
 	})
 	if len(colors) == 0 {
-		return math.MaxUint32
+		return 0, ErrNoPrimaryColor
 	}
-	return colorRGB(colors[0])
+	return colorRGB(colors[0]), nil
 }
 
 func colorRGB(c color.Color) uint32 {

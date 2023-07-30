@@ -3,7 +3,6 @@ package mosaic
 import (
 	"context"
 	"image"
-	"math"
 	"math/rand"
 	"os"
 	"sync"
@@ -33,7 +32,7 @@ type Config struct {
 type Generator struct {
 	config        Config
 	index         *Index
-	StatusHandler func(<-chan GeneratorStatus)
+	StatusHandler func(total int64, progress <-chan GeneratorStatus)
 }
 
 // NewGenerator creates a new Generator.
@@ -48,7 +47,6 @@ func NewGenerator(config Config, index *Index) *Generator {
 type GeneratorStatus struct {
 	Bounds     image.Rectangle
 	TileNumber int
-	TotalTiles int
 	Path       string
 	Err        error
 }
@@ -71,12 +69,12 @@ func (g *Generator) Generate(ctx context.Context, src image.Image) image.Image {
 		statusChans[i] = g.matchAndSwapTiles(output, tiles)
 	}
 
-	g.wait(statusChans)
+	g.wait(src.Bounds(), statusChans)
 
 	return output
 }
 
-func (*Generator) defaultStatusHandler(ch <-chan GeneratorStatus) {
+func (*Generator) defaultStatusHandler(total int64, ch <-chan GeneratorStatus) {
 	for range ch {
 		// do nothing
 	}
@@ -135,8 +133,10 @@ func (g *Generator) matchAndSwapTiles(output draw.Image, tiles <-chan image.Imag
 		for tile := range tiles {
 			status := tileStats(output.Bounds(), tile.Bounds())
 
-			c := primaryColor(tile, 0.01)
-			if c == math.MaxUint32 {
+			c, err := primaryColor(tile, 0.01)
+			if err != nil {
+				status.Err = err
+				out <- status
 				continue
 			}
 
@@ -169,19 +169,19 @@ func tileStats(imageBounds, tileBounds image.Rectangle) GeneratorStatus {
 	col := tileBounds.Min.Y / tileBounds.Dy()
 	return GeneratorStatus{
 		Bounds:     tileBounds,
-		TotalTiles: (imageBounds.Dx() / tileBounds.Dx()) * (imageBounds.Dy() / tileBounds.Dy()),
 		TileNumber: 1 + row + col*(imageBounds.Dx()/tileBounds.Dx()),
 	}
 }
 
-func (g *Generator) wait(statusChans []<-chan GeneratorStatus) {
+func (g *Generator) wait(bounds image.Rectangle, statusChans []<-chan GeneratorStatus) {
 	statusCh := make(chan GeneratorStatus, g.config.Workers*2)
 	statusHandler := g.defaultStatusHandler
 	if g.StatusHandler != nil {
 		statusHandler = g.StatusHandler
 	}
 
-	go statusHandler(statusCh)
+	totalTiles := int64((bounds.Dx() / g.config.TileWidth) * (bounds.Dy() / g.config.TileHeight))
+	go statusHandler(totalTiles, statusCh)
 
 	var wg sync.WaitGroup
 	wg.Add(len(statusChans))
