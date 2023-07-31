@@ -20,7 +20,7 @@ import (
 	"image/png"
 )
 
-var tileImagesPath string
+var tileImagesPath []string
 var sourceImagePath string
 var outputImagePath string
 
@@ -33,7 +33,10 @@ func init() {
 	var tileSize int
 
 	flag.StringVar(&sourceImagePath, "image", "", "Path to source image")
-	flag.StringVar(&tileImagesPath, "tiles", "", "Path to directory of tile images")
+	flag.Func("tiles", "Path to directory of tile images (can be set multiple times)", func(s string) error {
+		tileImagesPath = append(tileImagesPath, s)
+		return nil
+	})
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
 	flag.IntVar(&tileSize, "size", 25, "Tile size")
 	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width (overrides -size)")
@@ -49,7 +52,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	if tileImagesPath == "" {
+	if len(tileImagesPath) == 0 {
 		fmt.Fprintln(os.Stderr, "Missing tile images path")
 		os.Exit(1)
 	}
@@ -109,10 +112,12 @@ func main() {
 		}
 	}
 
-	err = index.AddPath(ctx, tileImagesPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error indexing tile images: %v\n", err)
-		os.Exit(1)
+	for _, dir := range tileImagesPath {
+		err = index.AddPath(ctx, dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error indexing tile images directory %s: %v\n", dir, err)
+			os.Exit(1)
+		}
 	}
 
 	generator := mosaic.NewGenerator(config, index)
