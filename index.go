@@ -2,8 +2,12 @@ package mosaic
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
 	"log"
+	"math"
 	"strings"
 	"sync"
 
@@ -206,4 +210,68 @@ func (idx *Index) mergeColorChannels(chs ...<-chan IndexImage) <-chan IndexImage
 	}()
 
 	return out
+}
+
+// Write serializes the index to the given writer.
+func (idx *Index) Write(w io.Writer) error {
+	var err error
+	for color, paths := range idx.paths {
+		for _, path := range paths {
+			err = binary.Write(w, binary.LittleEndian, color)
+			if err != nil {
+				return err
+			}
+
+			pathLen := len(path)
+			if pathLen > math.MaxUint16 {
+				return fmt.Errorf("path %s is too long", path)
+			}
+
+			err = binary.Write(w, binary.LittleEndian, uint16(pathLen))
+			if err != nil {
+				return err
+			}
+
+			_, err = w.Write([]byte(path))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Load deserializes the index from the given reader.
+func (idx *Index) Load(r io.Reader) error {
+	var err error
+	for err == nil {
+		var color uint32
+		err = binary.Read(r, binary.LittleEndian, &color)
+		if err != nil {
+			break
+		}
+
+		var pathLen uint16
+		err = binary.Read(r, binary.LittleEndian, &pathLen)
+		if err != nil {
+			break
+		}
+
+		path := make([]byte, pathLen)
+		_, err = io.ReadFull(r, path)
+		if err != nil {
+			break
+		}
+
+		err = idx.insert(color, string(path))
+		if err != nil {
+			break
+		}
+	}
+
+	if !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }

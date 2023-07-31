@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -23,6 +24,7 @@ import (
 var tileImagesPath []string
 var sourceImagePath string
 var outputImagePath string
+var indexPath string
 
 var config = mosaic.Config{
 	//ResizeTiles: true,
@@ -37,6 +39,7 @@ func init() {
 		tileImagesPath = append(tileImagesPath, s)
 		return nil
 	})
+	flag.StringVar(&indexPath, "index", "", "Path to index file")
 	flag.StringVar(&outputImagePath, "out", "", "Path to output image")
 	flag.IntVar(&tileSize, "size", 25, "Tile size")
 	flag.IntVar(&config.TileWidth, "tile-width", 0, "Tile width (overrides -size)")
@@ -52,7 +55,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	if len(tileImagesPath) == 0 {
+	if len(tileImagesPath) == 0 && indexPath == "" {
 		fmt.Fprintln(os.Stderr, "Missing tile images path")
 		os.Exit(1)
 	}
@@ -112,10 +115,31 @@ func main() {
 		}
 	}
 
+	if indexPath != "" {
+		err = loadIndexFile(index, indexPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading index file %s: %v\n", indexPath, err)
+			os.Exit(1)
+		}
+	}
+
 	for _, dir := range tileImagesPath {
 		err = index.AddPath(ctx, dir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error indexing tile images directory %s: %v\n", dir, err)
+			os.Exit(1)
+		}
+	}
+
+	if index.Len() == 0 {
+		fmt.Fprintln(os.Stderr, "No tile images found")
+		os.Exit(1)
+	}
+
+	if indexPath != "" {
+		err = saveIndexFile(index, indexPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving index file %s: %v\n", indexPath, err)
 			os.Exit(1)
 		}
 	}
@@ -193,4 +217,37 @@ func writeImage(img image.Image, f *os.File) error {
 	}
 
 	return fmt.Errorf("unknown image type: %s", ext)
+}
+
+func loadIndexFile(index *mosaic.Index, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("error opening %s: %v", path, err)
+	}
+	defer f.Close()
+
+	err = index.Load(f)
+	if err != nil {
+		return fmt.Errorf("error loading index: %v", err)
+	}
+
+	return nil
+}
+
+func saveIndexFile(index *mosaic.Index, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("error creating %s: %v", path, err)
+	}
+	defer f.Close()
+
+	err = index.Write(f)
+	if err != nil {
+		return fmt.Errorf("error saving index: %v", err)
+	}
+
+	return nil
 }
